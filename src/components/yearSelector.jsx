@@ -14,9 +14,11 @@ const YearSelector = ({ setSelectedDate,selectedDate }) => {
 
   // Update parent's selectedDate whenever activeIndex changes
   useEffect(() => {
+    console.log('yearselector');
     const newDate = new Date();
     newDate.setFullYear(years[activeIndex]);
     newDate.setDate(selectedDate.getDate()); // Set to first day of month for consistency
+    if(newDate.getFullYear()!==new Date(selectedDate).getFullYear())// Set to the same day of month as selectedDate for consistency
     setSelectedDate(newDate);
   }, [activeIndex,!!years]);
 

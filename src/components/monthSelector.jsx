@@ -18,9 +18,10 @@ const MonthSelector = ({ setSelectedDate,selectedDate }) => {
     // Create a new date with current year and selected month
     const newDate = new Date();
     newDate.setMonth(activeIndex);
-    newDate.setDate(selectedDate.getDate()); // Set to the same day of month as selectedDate for consistency
+    newDate.setDate(selectedDate.getDate()); 
+    if(newDate.getMonth()!==new Date(selectedDate).getMonth())// Set to the same day of month as selectedDate for consistency
     setSelectedDate(newDate);
-  }, [activeIndex,]);
+  }, [activeIndex]);
 
   // Handle month selection from dropdown
   const handleMonthSelect = (index) => {
@@ -35,7 +36,7 @@ const MonthSelector = ({ setSelectedDate,selectedDate }) => {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    console.log('here');
+    console.log('monthselector')
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
           !event.target.closest('.month-display')) {
