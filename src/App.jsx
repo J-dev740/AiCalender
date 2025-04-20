@@ -34,6 +34,7 @@ const MainCalendar = () => {
     { type: 'ai', text: 'Great! I can help with that. When would you prefer to have the meeting, and how long should it be?' }
   ]);
   const [currentEventData,setCurrentEventData]=useState(null);
+  const [allEvents, setAllEvents] = useState([]);
 
   // Sample events
   const [events, setEvents] = useState({
@@ -45,31 +46,7 @@ const MainCalendar = () => {
   const { user, isLoaded, isSignedIn } = useUser();
   const [subscription, setSubscription] = useState({ status: 'free' });
   // Calendar data
-  const [calendarData, setCalendarData] = useState(() => {
-    const data = {};
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-    
-  
-    // Generate some sample events for the current month
-    for (let i = 1; i <= 28; i++) {
-      const eventsCount = Math.floor(Math.random() * 5); // 0-4 events per day
-      if (eventsCount > 0) {
-        data[`${currentYear}-${currentMonth+1}-${i}`] = {
-          count: eventsCount,
-          events: Array(eventsCount).fill(0).map((_, idx) => ({
-            id: `event-${i}-${idx}`,
-            time: `${Math.floor(Math.random() * 12) + 1}:${Math.random() > 0.5 ? '30' : '00'} ${Math.random() > 0.5 ? 'AM' : 'PM'}`,
-            title: ["Team Meeting", "Coffee Break", "Client Call", "Focus Time", "Planning Session"][Math.floor(Math.random() * 5)],
-            note: "Meeting notes and details will appear here",
-            organizer: ["You", "Alex", "Jamie", "Taylor"][Math.floor(Math.random() * 4)]
-          }))
-        };
-      }
-    }
-    return data;
-  });
+  const [calendarData, setCalendarData] = useState({});
 useEffect(()=>{console.log('events',events)},[events])
   useEffect(() => {
     if (isSignedIn) {
@@ -111,10 +88,51 @@ useEffect(()=>{console.log('events',events)},[events])
             today: todayEvents,
             tomorrow: tomorrowEvents
           });
+          // Process events for calendar view
+          processEventsForCalendar(data);
         })
         .catch(err => console.error('Error fetching events:', err));
     }
   }, [isSignedIn]);
+
+  // When selectedDate changes, update the calendar data if needed
+  useEffect(() => {
+    if (isSignedIn && allEvents.length > 0) {
+      processEventsForCalendar(allEvents);
+    }
+  }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
+   // Process events for calendar display
+   const processEventsForCalendar = (eventsData) => {
+    const calData = {};
+    
+    eventsData.forEach(event => {
+      const eventDate = new Date(event.startDate);
+      const year = eventDate.getFullYear();
+      const month = eventDate.getMonth() + 1; // Month is 0-indexed
+      const day = eventDate.getDate();
+      
+      const dateKey = `${year}-${month}-${day}`;
+      
+      if (!calData[dateKey]) {
+        calData[dateKey] = {
+          count: 0,
+          events: []
+        };
+      }
+      
+      calData[dateKey].count += 1;
+      calData[dateKey].events.push({
+        id: event._id || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        time: eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        title: event.title,
+        note: event.description || "No description provided",
+        organizer: event.organizer || "You"
+      });
+    });
+    
+    setCalendarData(calData);
+  };
+
   const handleChatSubmit = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -251,7 +269,31 @@ const handleSlotSelect = async (slot) => {
       
       return prev;
     });
-    
+    setAllEvents(prev => [...prev, data]);
+
+
+    // Update calendar data
+    setCalendarData(prev => {
+      const dateKey = `${year}-${month}-${day}`;
+      const existingDayData = prev[dateKey] || { count: 0, events: [] };
+      
+      return {
+        ...prev,
+        [dateKey]: {
+          count: existingDayData.count + 1,
+          events: [
+            ...existingDayData.events,
+            {
+              id: data._id || `event-${Date.now()}`,
+              time: startTimeStr,
+              title: data.title,
+              note: data.description || "No description provided",
+              organizer: "You"
+            }
+          ]
+        }
+      };
+    });
     // Close modal and show confirmation
     setIsModalOpen(false);
     setMessages(prev => [...prev, { 
@@ -278,39 +320,6 @@ const handleChatInputChange = (event) => {
     });
   };
   
-  function debounce(func,{ baseDelay = 150, minDelay = 30, windowSize = 10, threshold = 10 } = {}){
-    let timer;
-    let deltaTimes = [];
-    let lastEvent=Date.now();
-    return (...args) => {
-      const now=Date.now();
-      const deltaT=now-lastEvent;
-      lastEvent=now;
-
-          // Save deltaT, maintaining a fixed window of recent events
-    deltaTimes.push(deltaT);
-    if (deltaTimes.length > windowSize) {
-      deltaTimes.shift();
-    }
-
-        // Compute the average delta over the window
-        const avgDelta = deltaTimes.reduce((sum, t) => sum + t, 0) / deltaTimes.length;
-
-        let computedDelay;
-    if (avgDelta < threshold) {
-      computedDelay = minDelay;
-    } else {
-      // Increase delay relative to how much avgDelta exceeds the threshold,
-      // up to a maximum of baseDelay.
-      computedDelay = Math.min(baseDelay, minDelay + (avgDelta - threshold));
-    }
-      if(timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        func(...args);
-      }, computedDelay);
-      
-    }
-  }
   const [selectedDayEvents, setSelectedDayEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
