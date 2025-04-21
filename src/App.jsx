@@ -7,6 +7,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import MonthSelector from "./components/monthSelector";
 import YearSelector from "./components/yearSelector";
 import AuthWrapper from "./components/AuthWrapper";
+import Header from "./components/Header";
+import SubscriptionPlans from './components/SubscriptionPlans';
 
 const MainCalendar = () => {
   // State management
@@ -339,7 +341,15 @@ const handleChatInputChange = (event) => {
     setViewMode(viewMode === "schedule" ? "calendar" : "schedule");
     setIsDrawerOpen(false);
   };
-
+  // Show subscription page
+  const showSubscriptionView = () => {
+    setViewMode("subscription");
+    setIsDrawerOpen(false);
+  };
+    // Handle back from subscription
+    const handleCloseSubscription = () => {
+      setViewMode(viewMode === "subscription" ? "schedule" : viewMode);
+    };
   // Handle day selection in calendar
   const handleDayClick = (day) => {
     const dateKey = `${selectedDate.getFullYear()}-${selectedDate.getMonth()+1}-${day}`;
@@ -381,26 +391,35 @@ const handleChatInputChange = (event) => {
 
   // Format date string
   const formatDate = (date) => {
-    const formattedDate= new Intl.DateTimeFormat('en-US', { 
-      month: 'numeric', 
-      day: 'numeric', 
-      year: 'numeric' 
+    // guard against invalid input
+    if (!(date instanceof Date) || isNaN(date)) {
+      return '';
+    }
+  
+    // use '2-digit' for month/day if you want leading zeros
+    return new Intl.DateTimeFormat('en-US', {
+      month: '2-digit',
+      day:   '2-digit',
+      year:  'numeric'
     }).format(date);
-    return formattedDate;
   };
   
-  const today = formatDate();
-  const tomorrow = {
-    ...formatDate(),
-    dayName: formatDate().dayName === 'Saturday' ? 'Sunday' : 
-             formatDate().dayName === 'Friday' ? 'Saturday' :
-             formatDate().dayName === 'Thursday' ? 'Friday' :
-             formatDate().dayName === 'Wednesday' ? 'Thursday' :
-             formatDate().dayName === 'Tuesday' ? 'Wednesday' :
-             formatDate().dayName === 'Monday' ? 'Tuesday' : 'Monday',
-    date: formatDate().date + 1
-  };
-
+  const today = formatDate(new Date());
+    const nextDay = new Date(new Date().getTime() + 24 * 60 * 60 * 1000);
+    console.log('nextday',nextDay)
+    console.log('formatedate',formatDate(nextDay))
+    const tomorrow = {
+      ...formatDate(nextDay),
+      dayName: formatDate(nextDay).dayName === 'Saturday' ? 'Sunday' : 
+               formatDate(nextDay).dayName === 'Friday' ? 'Saturday' :
+               formatDate(nextDay).dayName === 'Thursday' ? 'Friday' :
+               formatDate(nextDay).dayName === 'Wednesday' ? 'Thursday' :
+               formatDate(nextDay).dayName === 'Tuesday' ? 'Wednesday' :
+               formatDate(nextDay).dayName === 'Monday' ? 'Tuesday' : 'Monday',
+      date: formatDate(nextDay)
+    };
+console.log('tomorrow',tomorrow);
+console.log('today',today);
     // Animation variants for the cards
     const containerVariants = {
       hidden: { opacity: 0 },
@@ -457,7 +476,7 @@ const handleChatInputChange = (event) => {
       <div className="relative flex">
         {/* Main Card */}
         <motion.div
-          className="relative w-[480px] h-[450px]  p-4 rounded-2xl  bg-gradient-to-br from-white to-gray-100 shadow-lg border border-gray-200"
+          className="relative w-[480px] h-[450px] overflow-hidden  p-4 rounded-2xl  bg-gradient-to-br from-white to-gray-100 shadow-lg border border-gray-200"
           layout
         >
           {/* Background gradient animation */}
@@ -476,80 +495,18 @@ const handleChatInputChange = (event) => {
 
           {/* Header with toggle */}
           <motion.div
-            className="flex items-center justify-between mb-4 relative"
+            className="flex items-center w-full justify-between mb-4 relative"
             // whileHover={{ scale: 1.02 }}
             // transition={{ duration: 0.2 }}
           >
-            <div className="flex items-center gap-2">
-              {/* Blob-like logo */}
-              <motion.div
-                className="relative w-8 h-8 flex items-center justify-center"
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              >
-                <motion.div
-                  className="absolute inset-0 bg-blue-500 rounded-full"
-                  animate={{
-                    borderRadius: [
-                      "50% 50% 50% 50%",
-                      "60% 40% 40% 60%",
-                      "40% 60% 60% 40%",
-                      "50% 50% 50% 50%",
-                    ],
-                  }}
-                  transition={{
-                    duration: 5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                />
-                <svg
-                  className="w-5 h-5 text-white relative z-10"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-              </motion.div>
-              <h3 className="text-lg font-semibold text-gray-800">CalBuddy</h3>
-            </div>
-            {/* subscription badge */}
-            <span
-              className={`text-xs px-2 py-1 rounded-full font-medium mr-2
-                  ${
-                    subscription.status === "premium"
-                      ? "bg-purple-100 text-purple-700"
-                      : subscription.status === "basic"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-700"
-                  }`}
-            >
-              {subscription.status.charAt(0).toUpperCase() +
-                subscription.status.slice(1)}
-            </span>
-            {/* Toggle Switch */}
-            <motion.button
-              onClick={toggleViewMode}
-              className="relative w-12 h-6 bg-gray-200 rounded-full p-1 flex items-center"
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                className="w-4 h-4 rounded-full bg-blue-500 absolute"
-                animate={{ x: viewMode === "schedule" ? 1 : 26 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-              <span className="sr-only">Toggle View</span>
-            </motion.button>
+                      {/* Header with toggle */}
+          {/* Header with toggle */}
+          <Header 
+            subscription={subscription}
+            viewMode={viewMode}
+            toggleViewMode={toggleViewMode}
+            onShowSubscription={showSubscriptionView}
+          />
           </motion.div>
 
           {/* Content based on view mode */}
@@ -705,28 +662,28 @@ const handleChatInputChange = (event) => {
 
                   {/* Right Column - Cards */}
                   <div
-                    className={` p-2 flex h-fit ${
-                      toggle ? "" : "w-0.5"
+                    className={` p-2  flex h-fit ${
+                      toggle ? "w-1/2" : ""
                     } flex-col bg-transparent  `}
                   >
                     {/* Today Card */}
-                    <div
+                    <button
                       onClick={() => setToggle(!toggle)}
-                      className="absolute top-0 right-0 w-4 h-4 hover:cursor-pointer rounded-bl-md rounded-tl-md rounded-br-md bg-gradient-to-br hover:scale-125 transition-all duration-300 from-purple-500 to-gray-500 shadow-lg"
-                    />
+                      className="absolute top-0 right-0 w-fit flex items-center justify-center p-2 h-4 hover:cursor-pointer rounded-bl-md rounded-tl-md rounded-br-md bg-gradient-to-br hover:scale-110 transition-all duration-300 bg-stone-50 ring-1 shadow-lg"
+                    >show Events</button>
                     <AnimatePresence>
                       {toggle && (
                         <motion.div
-                          className="flex flex-col w-full"
+                          className="flex flex-col w-full "
                           variants={containerVariants}
                           initial="hidden"
                           animate="visible"
                           exit="hidden"
                         >
                           {/* Today Card */}
-                          <motion.div variants={cardVariants} exit="exit">
+                          <motion.div style={{width: "100%"}} variants={cardVariants} exit="exit">
                             <div
-                              className={`mb-2 bg-white rounded-lg shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md ${
+                              className={`mb-2 bg-white rounded-lg flex w-full flex-col items-start shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md ${
                                 activeCard === "today"
                                   ? "ring-1 ring-blue-400"
                                   : ""
@@ -891,7 +848,7 @@ const handleChatInputChange = (event) => {
 
                 {/* Integrated UI from first file ends here */}
               </motion.div>
-            ) : (
+            ) : viewMode==="calendar" ? (
               <motion.div
                 key="calendar-view"
                 initial={{ opacity: 0, x: 20 }}
@@ -1007,6 +964,24 @@ const handleChatInputChange = (event) => {
                     Add Event
                   </motion.button> */}
                 </motion.div>
+              </motion.div>
+            ):(
+              <motion.div
+                key="subscription-view"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                transition={{ 
+                  type: "spring", 
+                  damping: 25,
+                  stiffness: 300
+                }}
+                className="relative flex h-full "
+              >
+                <SubscriptionPlans 
+                  subscription={subscription} 
+                  onClose={handleCloseSubscription} 
+                />
               </motion.div>
             )}
           </AnimatePresence>
