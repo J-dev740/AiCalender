@@ -1,16 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { aiApi, eventApi,subscriptionApi } from './services/api';
+import {useApiAuth} from './services/api';
 import { useUser } from '@clerk/clerk-react';
-import { SignIn,SignUp } from "@clerk/clerk-react";
+import { SignInButton,SignUpButton } from "@clerk/clerk-react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import MonthSelector from "./components/monthSelector";
 import YearSelector from "./components/yearSelector";
 import AuthWrapper from "./components/AuthWrapper";
 import Header from "./components/Header";
 import SubscriptionPlans from './components/SubscriptionPlans';
+import UserProfile from "./components/UserProfile";
+import { useSyncUser } from "./hooks/useSyncUser";
+import { useSelector,useDispatch } from "react-redux";
+import { openAuthModal, selectAuthOpen } from "./redux/authSlice";
+// import store from "./redux/store";
+
 
 const MainCalendar = () => {
+  const { getToken } = useUser();
+  const {eventApi,aiApi,subscriptionApi}=useApiAuth(getToken);
   // State management
   const [viewMode, setViewMode] = useState("schedule"); // "schedule" or "calendar"
   const [activeCard, setActiveCard] = useState(null);
@@ -18,11 +26,11 @@ const MainCalendar = () => {
   const [chatInput, setChatInput] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [prompt, setPrompt] = useState("");
-  const [direction, setDirection] = useState(0); // 1 for up (next month), -1 for down (prev month)
-  const [swipeDirection, setSwipeDirection] = useState("left");
-  const [swipeAnimating, setSwipeAnimating] = useState(false);
-  const [scrollingMonth, setScrollingMonth] = useState(false);
-  const [scrollingYear, setScrollingYear] = useState(false);
+  // const [direction, setDirection] = useState(0); // 1 for up (next month), -1 for down (prev month)
+  // const [swipeDirection, setSwipeDirection] = useState("left");
+  // const [swipeAnimating, setSwipeAnimating] = useState(false);
+  // const [scrollingMonth, setScrollingMonth] = useState(false);
+  // const [scrollingYear, setScrollingYear] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -49,13 +57,23 @@ const MainCalendar = () => {
   const [subscription, setSubscription] = useState({ status: 'free' });
   // Calendar data
   const [calendarData, setCalendarData] = useState({});
+  const getSubStatus= async ()=>{
+    try {
+      const response=await subscriptionApi.getStatus();
+      const {data}=response;
+
+      setSubscription(data);
+    } catch (error) {
+      console.error('Error Fetching sub status',error?.message??error);
+    }
+  }
 useEffect(()=>{console.log('events',events)},[events])
   useEffect(() => {
-    if (isSignedIn) {
+    console.log('isSignedIn',isSignedIn)
+    if (isSignedIn && user) {
       // Fetch subscription status
-      subscriptionApi.getStatus()
-        .then(({ data }) => setSubscription(data))
-        .catch(err => console.error('Error fetching subscription:', err));
+      console.log('getting sub status')
+      getSubStatus();
       
       // Fetch user's events
       eventApi.getEvents()
@@ -95,7 +113,7 @@ useEffect(()=>{console.log('events',events)},[events])
         })
         .catch(err => console.error('Error fetching events:', err));
     }
-  }, [isSignedIn]);
+  }, [isSignedIn,user,isSignedIn]);
 
   // When selectedDate changes, update the calendar data if needed
   useEffect(() => {
@@ -346,10 +364,23 @@ const handleChatInputChange = (event) => {
     setViewMode("subscription");
     setIsDrawerOpen(false);
   };
-    // Handle back from subscription
-    const handleCloseSubscription = () => {
-      setViewMode(viewMode === "subscription" ? "schedule" : viewMode);
+
+    // Show profile view
+    const showProfileView = () => {
+      setViewMode("profile");
+      setIsDrawerOpen(false);
     };
+    // Handle back from subscription
+  // Handle back from modal views
+  const handleCloseModalView = () => {
+    setViewMode(prevMode => {
+      // Default back to schedule if coming from subscription or profile
+      if (prevMode === "subscription" || prevMode === "profile") {
+        return "schedule";
+      }
+      return prevMode;
+    });
+  };
   // Handle day selection in calendar
   const handleDayClick = (day) => {
     const dateKey = `${selectedDate.getFullYear()}-${selectedDate.getMonth()+1}-${day}`;
@@ -476,7 +507,7 @@ console.log('today',today);
       <div className="relative flex">
         {/* Main Card */}
         <motion.div
-          className="relative w-[480px] h-[450px] overflow-hidden  p-4 rounded-2xl  bg-gradient-to-br from-white to-gray-100 shadow-lg border border-gray-200"
+          className="relative w-[480px] h-[450px]  p-4 rounded-2xl  bg-gradient-to-br from-white to-gray-100 shadow-lg border border-gray-200"
           layout
         >
           {/* Background gradient animation */}
@@ -506,6 +537,7 @@ console.log('today',today);
             viewMode={viewMode}
             toggleViewMode={toggleViewMode}
             onShowSubscription={showSubscriptionView}
+            onShowProfile={showProfileView}
           />
           </motion.div>
 
@@ -523,9 +555,7 @@ console.log('today',today);
                 <div className="flex flex-row justify-between w-full">
                   {/* Left Column - Chat Section */}
                   <div
-                    className={`flex flex-col  ${
-                      toggle ? "w-1/2" : "w-full"
-                    } transition-transform duration-1000 p-2 border-r border-gray-100`}
+                    className={`flex flex-col w-full transition-transform duration-1000 p-2 border-r border-gray-100`}
                   >
                     {/* Chat Messages Area */}
                     <div className="h-64 overflow-y-auto mb-2 p-2">
@@ -564,12 +594,12 @@ console.log('today',today);
                         type="text"
                         value={chatInput}
                         onChange={(e)=>handleChatInputChange(e)}
-                        className="w-full px-3 py-2 pr-10 bg-gray-50 border border-gray-200 rounded-full text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
+                        className="w-full px-3 drop-shadow-md p-2 bg-gray-100 border border-gray-200 rounded-md my-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
                         placeholder="Tell AI your schedule..."
                       />
                       <button
                         type="submit"
-                        className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+                        className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6  flex items-center justify-center bg-blue-500 text-white rounded-md drop-shadow-2xl  border-white hover:bg-blue-600 transition-colors"
                         disabled={isProcessing}
                       >
                         {isProcessing ? (
@@ -608,7 +638,7 @@ console.log('today',today);
                     </form>
 
                     {/* Quick Action Buttons */}
-                    <div className="flex gap-1 mt-2">
+                    <div className="flex gap-1 max-h-[30px] mt-2">
                       <button className="px-2 py-1 bg-blue-100 text-blue-600 rounded-lg rounded-tr-none text-xs font-medium flex items-center gap-1 hover:bg-blue-200 transition-colors">
                         <svg
                           className="w-2 h-2"
@@ -657,24 +687,21 @@ console.log('today',today);
                         </svg>
                         Focus
                       </button>
+                        <button
+                      onClick={() => setToggle(!toggle)}
+                         className="absolute right-1  px-4 py-2 bg-sky-100  rounded-md text-xs font-medium flex items-center gap-1 hover:bg-sky-200   transition-colors">{toggle?"Hide Events":"show Events"}</button>
                     </div>
                   </div>
 
                   {/* Right Column - Cards */}
-                  <div
-                    className={` p-2  flex h-fit ${
-                      toggle ? "w-1/2" : ""
-                    } flex-col bg-transparent  `}
-                  >
-                    {/* Today Card */}
-                    <button
-                      onClick={() => setToggle(!toggle)}
-                      className="absolute top-0 right-0 w-fit flex items-center justify-center p-2 h-4 hover:cursor-pointer rounded-bl-md rounded-tl-md rounded-br-md bg-gradient-to-br hover:scale-110 transition-all duration-300 bg-stone-50 ring-1 shadow-lg"
-                    >show Events</button>
+                  {/* <div
+                  > */}
+                    {/* Today Card */}{
+                      toggle && 
                     <AnimatePresence>
                       {toggle && (
                         <motion.div
-                          className="flex flex-col w-full "
+                        className="w-60  absolute left-[100%] top-0 z-50 bg-white rounded-2xl shadow-lg border border-gray-200 p-4 ml-4 overflow-hidden"
                           variants={containerVariants}
                           initial="hidden"
                           animate="visible"
@@ -842,8 +869,8 @@ console.log('today',today);
                           </motion.div>
                         </motion.div>
                       )}
-                    </AnimatePresence>
-                  </div>
+                    </AnimatePresence>}
+                  {/* </div> */}
                 </div>
 
                 {/* Integrated UI from first file ends here */}
@@ -965,7 +992,22 @@ console.log('today',today);
                   </motion.button> */}
                 </motion.div>
               </motion.div>
-            ):(
+            ) : viewMode === "profile" ? (
+              <motion.div
+                key="profile-view"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 100 }}
+                transition={{ 
+                  type: "spring", 
+                  damping: 25,
+                  stiffness: 300
+                }}
+                className="relative h-full"
+              >
+                <UserProfile onClose={handleCloseModalView} />
+              </motion.div>
+            ) :(
               <motion.div
                 key="subscription-view"
                 initial={{ opacity: 0, y: 100 }}
@@ -980,7 +1022,7 @@ console.log('today',today);
               >
                 <SubscriptionPlans 
                   subscription={subscription} 
-                  onClose={handleCloseSubscription} 
+                  onClose={handleCloseModalView} 
                 />
               </motion.div>
             )}
@@ -989,7 +1031,7 @@ console.log('today',today);
           <AnimatePresence>
             {isDrawerOpen && (
               <motion.div
-                className="w-60  absolute left-[100%] top-0 z-10 bg-white rounded-2xl shadow-lg border border-gray-200 p-4 ml-4 overflow-hidden"
+                className="w-60  absolute left-[100%] top-0 z-50 bg-white rounded-2xl shadow-lg border border-gray-200 p-4 ml-4 overflow-hidden"
                 initial={{
                   opacity: 0,
                   x: -100,
@@ -1175,20 +1217,100 @@ console.log('today',today);
 };
 
 const App=() => {
+  const { isLoaded, isSignedIn,user } = useUser();
+  const isAuthOpen=selectAuthOpen
+
+  if (!isLoaded) {
+    return (
+      <div className=" fixed  flex top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[450px] h-[400px] bg-white shadow-lg p-6">
+        <div className="flex absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2  animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"/>
+      </div>
+    );
+  }
+  if(!isSignedIn ||selectAuthOpen===true){
+    return (
+      <div className=" fixed  flex top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[450px] h-fit  bg-white shadow-lg ">
+              <motion.div 
+                className="w-full max-w-md h-full "
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ 
+                  type: "spring", 
+                  damping: 25,
+                  stiffness: 300
+                }}
+              >
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                  {/* Gradient header */}
+                  <div className="bg-gradient-to-r from-white rounded-lg to-gray-400 px-4 py-2  text-black">
+                    <h2 className="text-lg font-bold">Welcome to CalBuddy</h2>
+                    <p className="opacity-80 mt-1  text-sm">AI-powered scheduling assistant</p>
+                  </div>
+                  
+                  <div className="p-4 flex flex-col justify-center items-center">
+                    {/* Description */}
+                    <p className="text-gray-600 text-sm mb-6">
+                      Sign in to access your intelligent calendar and let AI handle your scheduling needs.
+                    </p>
+                    
+                    {/* Sign in button */}
+                    <motion.div 
+                      className=" "
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <SignInButton mode="modal">
+                        <button className="w-fit text-sm bg-gradient-to-r from-white rounded-lg to-gray-400  font-medium py-3 px-4 text-black flex items-center justify-center transition-all duration-200">
+                          <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 15C14 13.3431 12.6569 12 11 12H6C4.34315 12 3 13.3431 3 15V19H14V15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M15 7V12M15 7H12M15 7H18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <circle cx="8.5" cy="7.5" r="2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M18 14H21V19H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Sign In 
+                        </button>
+                      </SignInButton>
+                    </motion.div>
+                    
+                    {/* Divider */}
+                    <div className="flex items-center my-2">
+                      <div className="flex-grow border-t border-gray-200"></div>
+                      <span className="flex-shrink mx-4 text-gray-400 text-sm">or</span>
+                      <div className="flex-grow border-t border-gray-200"></div>
+                    </div>
+                    
+                    {/* Sign up section */}
+                    <div className="flex flex-col justify-center items-center text-center text-xs">
+                      <p className="text-gray-600 mb-4">Don't have an account yet?</p>
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <SignUpButton mode="modal">
+                          <button className="w-fit object-center text-sm bg-gradient-to-r from-white rounded-lg to-gray-400 font-medium py-3 px-4  flex items-center justify-center transition-all duration-200">
+                            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M12 4V20M4 12H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Sign Up
+                          </button>
+                        </SignUpButton>
+                      </motion.div>
+                    </div>
+                  </div>
+                  
+                  {/* Footer */}
+                  <div className="bg-gray-50 p-4 text-center text-xs text-gray-500 border-t border-gray-100">
+                    <p>By signing in, you agree to our Terms of Service and Privacy Policy</p>
+                  </div>
+                </div>
+              </motion.div>
+    </div>
+    )
+  }
+  useSyncUser();
   return (
     <Router>
       <Routes>
-        <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" />} />
-        <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" />} />
-        <Route 
-          path="/subscription" 
-          element={
-            <AuthWrapper>
-              {/* <SubscriptionPlans /> */}
-              <div>subscription plans</div>
-            </AuthWrapper>
-          } 
-        />
         <Route 
           path="/subscription/success" 
           element={
@@ -1242,9 +1364,7 @@ const App=() => {
         <Route 
           path="/" 
           element={
-            <AuthWrapper>
               <MainCalendar />
-            </AuthWrapper>
           } 
         />
       </Routes>

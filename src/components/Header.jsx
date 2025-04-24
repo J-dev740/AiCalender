@@ -5,9 +5,9 @@ const Header = ({
     subscription, 
     viewMode, 
     toggleViewMode,
-    onShowSubscription
+    onShowSubscription,
+    onShowProfile
 }) => {
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   return (
     <>
@@ -84,9 +84,10 @@ const Header = ({
 
           {/* User Avatar */}
           <motion.button
-            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600"
+            className="w-8 h-8 rounded-full bg-gray-100 hover:cursor-pointer flex items-center justify-center text-gray-600"
             whileHover={{ backgroundColor: "#f3f4f6" }}
             whileTap={{ scale: 0.95 }}
+            onClick={onShowProfile}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

@@ -1,18 +1,22 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { subscriptionApi } from '../services/api';
+import {useApiAuth } from '../services/api';
+import { useAuth } from '@clerk/clerk-react';
 
 const SubscriptionPlans = ({ subscription, onClose }) => {
+    const {getToken}=useAuth();
+    const {subscriptionApi}=useApiAuth(getToken);
+
   return (
     <motion.div
-      className="w-full h-full relative overflow-y-scroll"
-      initial={{ y: "100%" }}
-      animate={{ y: 0 }}
-      exit={{ y: "100%" }}
+      className="w-full h-fit relative "
+      initial={{ y: "100%",opacity:0,z:-10 }}
+      animate={{ y: 0,opacity:1,z:10 }}
+      exit={{ y: "100%",z:-10,opacity:0 }}
       transition={{ type: "spring", damping: 25, stiffness: 300 }}
     >
 
-      <div className="h-full flex flex-col gap-2 overflow-y-auto bg-white rounded-2xl p-6">
+      <div className="h-full flex flex-col gap-2 overflow-y-auto bg-slate-100 rounded-2xl p-4">
       <div className="flex   items-center justify-between rounded-2xl mb-2 p-2">
         <h2 className="text-lg font-bold text-gray-800">Subscription Plans</h2>
         <button
@@ -44,7 +48,7 @@ const SubscriptionPlans = ({ subscription, onClose }) => {
       </div>
       <div className='flex flex-row justify-between items-center p-1'>
         {/* Free Plan */}
-        <div className="border flex h-fit flex-col  rounded-xl p-4 mb-4">
+        <div className=" flex hover:cursor-pointer bg-white h-fit flex-col drop-shadow-md  rounded-xl p-4 mb-4">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-md font-bold">Free</h3>
             {subscription.status === "free" && (
@@ -101,7 +105,7 @@ const SubscriptionPlans = ({ subscription, onClose }) => {
         </div>
 
         {/* Pro Plan */}
-        <div className="border-2 flex h-ft flex-col mb-10 border-blue-500 rounded-xl p-4 relative">
+        <div className="bg-white hover:cursor-pointer flex h-ft drop-shadow-md hover:drop-shadow-2xl drop-shadow-slate-200 hover:drop-shadow-blue-200 transition-all duration-100 flex-col mb-10 rounded-xl p-4 relative">
           <div className="absolute top-4 right-4 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
             Recommended
           </div>
