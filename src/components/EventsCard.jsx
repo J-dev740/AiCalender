@@ -13,7 +13,8 @@ const EventCards = ({ isVisible, calendarData }) => {
   const dispatch = useDispatch();
   const todayEvents = useSelector(selectTodayEvents);
   const tomorrowEvents = useSelector(selectTomorrowEvents);
-
+    console.log('todayEvents',todayEvents,'tomorrowEvetns',tomorrowEvents);
+    console.log(calendarData);
   const handleEventClick = (event, dateKey) => {
     // Find the full event information to open in modal
     const fullEvent = calendarData[dateKey]?.events.find(e => e.id === event.id)?.fullEvent;
@@ -37,7 +38,6 @@ const EventCards = ({ isVisible, calendarData }) => {
   tomorrow.setDate(tomorrow.getDate() + 1);
   
   const todayFormatted = formatDate(today);
-  const tomorrowFormatted = formatDate(tomorrow);
 
   // Animation variants
   const containerVariants = {

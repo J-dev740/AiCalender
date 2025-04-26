@@ -38,7 +38,7 @@ const MainCalendar = () => {
   const {eventApi,aiApi,subscriptionApi}=useApiAuth(getToken);
   // State management
   const [viewMode, setViewMode] = useState("schedule"); // "schedule" or "calendar"
-  const [activeCard, setActiveCard] = useState(null);
+  // const [activeCard, setActiveCard] = useState(null);
   const [toggle,setToggle]=useState(true);
   const [chatInput, setChatInput] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -55,25 +55,14 @@ const MainCalendar = () => {
     { type: 'user', text: 'I need to schedule a team meeting next week' },
     { type: 'ai', text: 'Great! I can help with that. When would you prefer to have the meeting, and how long should it be?' }
   ]);
-  const [allEvents, setAllEvents] = useState([]);
-
-  // Sample events
-  const [events, setEvents] = useState({
-    tomorrow: [],
-    today: []
-  });
   
   // Inside your App component
   const { user, isLoaded, isSignedIn } = useUser();
   const [subscription, setSubscription] = useState({ status: 'free' });
-  // Calendar data
-  // const [calendarData, setCalendarData] = useState({});
   // Redux event states
-  const todayEvents = useSelector(selectTodayEvents);
-  const tomorrowEvents = useSelector(selectTomorrowEvents);
+  // const allEvents = useSelector((state) => state.events.events);
   const calendarData = useSelector(selectCalendarData);
-  const eventsLoading = useSelector(selectEventsLoading);
-  const eventsError = useSelector(selectEventsError);
+
   const getSubStatus= async ()=>{
     try {
       const response=await subscriptionApi.getStatus();
@@ -92,11 +81,11 @@ const MainCalendar = () => {
   }, [isSignedIn,user]);
 
   // When selectedDate changes, update the calendar data if needed
-  useEffect(() => {
-    if (isSignedIn && allEvents.length > 0) {
-      processEventsForCalendar(allEvents);
-    }
-  }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
+  // useEffect(() => {
+  //   if (isSignedIn && allEvents.length > 0) {
+  //     processEventsForCalendar(allEvents);
+  //   }
+  // }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
 
     // Update selected day events when calendar data or selected date changes
     useEffect(() => {
@@ -246,39 +235,8 @@ const handleSlotSelect = async (slot) => {
       participants: currentEventData.participants || [],
       priority: currentEventData.priority || 'medium'
     };
-    // return;
-    // Create the event in the database
-    const { data } = await eventApi.createEvent(eventData);
-    
-    // Add to local events state
-    setEvents(prev => {
-      const isToday = startDate.toDateString() === new Date().toDateString();
-      const isTomorrow = startDate.toDateString() === new Date(Date.now() + 86400000).toDateString();
-      if (isToday) {
-        return {
-          ...prev,
-          today: [...prev.today, { 
-            time: startTimeStr, 
-            title: data.title, 
-            color: data.priority === 'high' ? 'red' : data.priority === 'medium' ? 'blue' : 'green' 
-          }]
-        };
-      } else if (isTomorrow) {
-        return {
-          ...prev,
-          tomorrow: [...prev.tomorrow, { 
-            time: startTimeStr, 
-            title: data.title, 
-            color: data.priority === 'high' ? 'purple' : data.priority === 'medium' ? 'blue' : 'green' 
-          }]
-        };
-      }
-      
-      return prev;
-    });
-    setAllEvents(prev => [...prev, data]);
     // Create the event using Redux
-    await dispatch(createEvent(eventData)).unwrap();
+   const data= await dispatch(createEvent(eventData)).unwrap();
     // Close modal and show confirmation
     setIsModalOpen(false);
     setMessages(prev => [...prev, { 
