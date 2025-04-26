@@ -6,10 +6,6 @@ import axios from "axios";
 export const useSyncUser = () => {
   const { isSignedIn, user } = useUser();
   const {getToken}=useAuth();
-//   const dispatch=useDispatch();
-//  const openModal=()=>{
-//     dispatch(openAuthModal());
-//  }
   useEffect(() => {
     const sync = async () => {
       if (!isSignedIn || !user) return;

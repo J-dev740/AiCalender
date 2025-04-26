@@ -1,6 +1,5 @@
 import React, { useState, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {useApiAuth} from './services/api';
 import { useUser } from '@clerk/clerk-react';
 import { SignInButton,SignUpButton } from "@clerk/clerk-react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
@@ -10,14 +9,31 @@ import AuthWrapper from "./components/AuthWrapper";
 import Header from "./components/Header";
 import SubscriptionPlans from './components/SubscriptionPlans';
 import UserProfile from "./components/UserProfile";
-import { useSyncUser } from "./hooks/useSyncUser";
 import { useSelector,useDispatch } from "react-redux";
-import { openAuthModal, selectAuthOpen } from "./redux/authSlice";
-// import store from "./redux/store";
+// auth related import 
+
+import { useSyncUser } from "./hooks/useSyncUser";
+import {  selectAuthOpen } from "./redux/authSlice";
+import {useApiAuth} from './services/api';
+
+// events related import 
+import { 
+  fetchEvents,
+  createEvent,
+  selectEvent,
+  openEventModal,
+  selectTodayEvents,
+  selectTomorrowEvents,
+  selectCalendarData,
+  selectEventsLoading,
+  selectEventsError
+} from './redux/eventSlice';
+import EventEditorModal from './components/EventEditorModal';
 
 
 const MainCalendar = () => {
   const { getToken } = useUser();
+  const dispatch =useDispatch();
   const {eventApi,aiApi,subscriptionApi}=useApiAuth(getToken);
   // State management
   const [viewMode, setViewMode] = useState("schedule"); // "schedule" or "calendar"
@@ -26,11 +42,6 @@ const MainCalendar = () => {
   const [chatInput, setChatInput] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [prompt, setPrompt] = useState("");
-  // const [direction, setDirection] = useState(0); // 1 for up (next month), -1 for down (prev month)
-  // const [swipeDirection, setSwipeDirection] = useState("left");
-  // const [swipeAnimating, setSwipeAnimating] = useState(false);
-  // const [scrollingMonth, setScrollingMonth] = useState(false);
-  // const [scrollingYear, setScrollingYear] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -43,7 +54,6 @@ const MainCalendar = () => {
     { type: 'user', text: 'I need to schedule a team meeting next week' },
     { type: 'ai', text: 'Great! I can help with that. When would you prefer to have the meeting, and how long should it be?' }
   ]);
-  const [currentEventData,setCurrentEventData]=useState(null);
   const [allEvents, setAllEvents] = useState([]);
 
   // Sample events
@@ -56,7 +66,13 @@ const MainCalendar = () => {
   const { user, isLoaded, isSignedIn } = useUser();
   const [subscription, setSubscription] = useState({ status: 'free' });
   // Calendar data
-  const [calendarData, setCalendarData] = useState({});
+  // const [calendarData, setCalendarData] = useState({});
+  // Redux event states
+  const todayEvents = useSelector(selectTodayEvents);
+  const tomorrowEvents = useSelector(selectTomorrowEvents);
+  const calendarData = useSelector(selectCalendarData);
+  const eventsLoading = useSelector(selectEventsLoading);
+  const eventsError = useSelector(selectEventsError);
   const getSubStatus= async ()=>{
     try {
       const response=await subscriptionApi.getStatus();
@@ -67,53 +83,12 @@ const MainCalendar = () => {
       console.error('Error Fetching sub status',error?.message??error);
     }
   }
-useEffect(()=>{console.log('events',events)},[events])
   useEffect(() => {
-    console.log('isSignedIn',isSignedIn)
     if (isSignedIn && user) {
-      // Fetch subscription status
-      console.log('getting sub status')
       getSubStatus();
-      
-      // Fetch user's events
-      eventApi.getEvents()
-        .then(({ data }) => {
-          // Process events for display
-          console.log('data',{data});
-          const today = new Date();
-          const todayEvents = data.filter(event => {
-            const eventDate = new Date(event.startDate);
-            console.log('eventDate',eventDate);
-            console.log('todayDate',today);
-            return eventDate.toDateString() === today.toDateString();
-          }).map(event => ({
-            time: new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            title: event.title,
-            color: event.priority === 'high' ? 'red' : event.priority === 'medium' ? 'blue' : 'green'
-          }));
-          
-          const tomorrowDate = new Date();
-          tomorrowDate.setDate(today.getDate() + 1);
-          const tomorrowEvents = data.filter(event => {
-            const eventDate = new Date(event.startDate);
-            return eventDate.toDateString() === tomorrowDate.toDateString();
-          }).map(event => ({
-            time: new Date(event.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            title: event.title,
-            color: event.priority === 'high' ? 'purple' : event.priority === 'medium' ? 'blue' : 'green'
-          }));
-          console.log('todayEvents',todayEvents);
-          console.log('tomorrowEvents',tomorrowEvents);
-          setEvents({
-            today: todayEvents,
-            tomorrow: tomorrowEvents
-          });
-          // Process events for calendar view
-          processEventsForCalendar(data);
-        })
-        .catch(err => console.error('Error fetching events:', err));
+      dispatch(fetchEvents());
     }
-  }, [isSignedIn,user,isSignedIn]);
+  }, [isSignedIn,user]);
 
   // When selectedDate changes, update the calendar data if needed
   useEffect(() => {
@@ -121,6 +96,18 @@ useEffect(()=>{console.log('events',events)},[events])
       processEventsForCalendar(allEvents);
     }
   }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
+
+    // Update selected day events when calendar data or selected date changes
+    useEffect(() => {
+      if (calendarData) {
+        const dateKey = `${selectedDate.getFullYear()}-${selectedDate.getMonth() + 1}-${selectedDate.getDate()}`;
+        if (calendarData[dateKey] && calendarData[dateKey].events) {
+          setSelectedDayEvents(calendarData[dateKey].events);
+        } else {
+          setSelectedDayEvents([]);
+        }
+      }
+    }, [calendarData, selectedDate]);
    // Process events for calendar display
    const processEventsForCalendar = (eventsData) => {
     const calData = {};
@@ -258,7 +245,6 @@ const handleSlotSelect = async (slot) => {
       participants: currentEventData.participants || [],
       priority: currentEventData.priority || 'medium'
     };
-    console.log('eventData',eventData);
     // return;
     // Create the event in the database
     const { data } = await eventApi.createEvent(eventData);
@@ -290,30 +276,8 @@ const handleSlotSelect = async (slot) => {
       return prev;
     });
     setAllEvents(prev => [...prev, data]);
-
-
-    // Update calendar data
-    setCalendarData(prev => {
-      const dateKey = `${year}-${month}-${day}`;
-      const existingDayData = prev[dateKey] || { count: 0, events: [] };
-      
-      return {
-        ...prev,
-        [dateKey]: {
-          count: existingDayData.count + 1,
-          events: [
-            ...existingDayData.events,
-            {
-              id: data._id || `event-${Date.now()}`,
-              time: startTimeStr,
-              title: data.title,
-              note: data.description || "No description provided",
-              organizer: "You"
-            }
-          ]
-        }
-      };
-    });
+    // Create the event using Redux
+    await dispatch(createEvent(eventData)).unwrap();
     // Close modal and show confirmation
     setIsModalOpen(false);
     setMessages(prev => [...prev, { 
@@ -334,15 +298,35 @@ const handleChatInputChange = (event) => {
 }
   // Add new event
   const addNewEvent = () => {
-    setEvents({
-      ...events,
-      today: [...events.today, { time: '3:00 PM', title: 'New Event', color: 'green' }]
-    });
+      // Create empty event and open modal
+      const now = new Date();
+      const newEvent = {
+        title: "",
+        startDate: now,
+        endDate: new Date(now.getTime() + 60 * 60 * 1000), // 1 hour later
+        description: "",
+        priority: "medium",
+        eventType: "meeting",
+        participants: []
+      };
+      dispatch(selectEvent(newEvent));
+      dispatch(openEventModal());
   };
   
   const [selectedDayEvents, setSelectedDayEvents] = useState([]);
-  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [currentEventData,setCurrentEventData]=useState(null);
 
+  // Handle event click in the calendar or event list
+  // This function will be called when clicking an event in the calendar view
+  const handleEventClick = (event) => {
+    // The event should contain a fullEvent property with all event details
+    if (event?.fullEvent) {
+      dispatch(selectEvent(event.fullEvent));
+      dispatch(openEventModal());
+    } else {
+      console.error('Event data is incomplete', event);
+    }
+  };
   // Handle scheduling
   const handleSchedule = () => {
     setIsProcessing(true);
@@ -396,11 +380,6 @@ const handleChatInputChange = (event) => {
     }
   };
 
-  // Handle event selection
-  const handleEventClick = (event) => {
-    setSelectedEvent(event);
-  };
-
   // Get month days array
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
@@ -437,8 +416,6 @@ const handleChatInputChange = (event) => {
   
   const today = formatDate(new Date());
     const nextDay = new Date(new Date().getTime() + 24 * 60 * 60 * 1000);
-    console.log('nextday',nextDay)
-    console.log('formatedate',formatDate(nextDay))
     const tomorrow = {
       ...formatDate(nextDay),
       dayName: formatDate(nextDay).dayName === 'Saturday' ? 'Sunday' : 
@@ -449,8 +426,6 @@ const handleChatInputChange = (event) => {
                formatDate(nextDay).dayName === 'Monday' ? 'Tuesday' : 'Monday',
       date: formatDate(nextDay)
     };
-console.log('tomorrow',tomorrow);
-console.log('today',today);
     // Animation variants for the cards
     const containerVariants = {
       hidden: { opacity: 0 },
@@ -530,15 +505,15 @@ console.log('today',today);
             // whileHover={{ scale: 1.02 }}
             // transition={{ duration: 0.2 }}
           >
-                      {/* Header with toggle */}
-          {/* Header with toggle */}
-          <Header 
-            subscription={subscription}
-            viewMode={viewMode}
-            toggleViewMode={toggleViewMode}
-            onShowSubscription={showSubscriptionView}
-            onShowProfile={showProfileView}
-          />
+            {/* Header with toggle */}
+            {/* Header with toggle */}
+            <Header
+              subscription={subscription}
+              viewMode={viewMode}
+              toggleViewMode={toggleViewMode}
+              onShowSubscription={showSubscriptionView}
+              onShowProfile={showProfileView}
+            />
           </motion.div>
 
           {/* Content based on view mode */}
@@ -569,7 +544,7 @@ console.log('today',today);
                           <div
                             className={`inline-block p-2 rounded-xl max-w-xs ${
                               message.type === "user"
-                                ? "bg-blue-50 rounded-tr-none ml-auto"
+                                ? "bg-white drop-shadow-md rounded-tr-none ml-auto"
                                 : "bg-gradient-to-r from-blue-50 to-blue-100 rounded-tl-none shadow-sm"
                             }`}
                           >
@@ -593,8 +568,8 @@ console.log('today',today);
                       <input
                         type="text"
                         value={chatInput}
-                        onChange={(e)=>handleChatInputChange(e)}
-                        className="w-full px-3 drop-shadow-md p-2 bg-gray-100 border border-gray-200 rounded-md my-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
+                        onChange={(e) => handleChatInputChange(e)}
+                        className="w-full px-3 drop-shadow-md p-2 bg-white  border border-gray-200 rounded-md my-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
                         placeholder="Tell AI your schedule..."
                       />
                       <button
@@ -639,7 +614,7 @@ console.log('today',today);
 
                     {/* Quick Action Buttons */}
                     <div className="flex gap-1 max-h-[30px] mt-2">
-                      <button className="px-2 py-1 bg-blue-100 text-blue-600 rounded-lg rounded-tr-none text-xs font-medium flex items-center gap-1 hover:bg-blue-200 transition-colors">
+                      <button className="px-4 py-2 bg-white drop-shadow-2xl rounded-lg rounded-tr-none text-xs font-medium flex items-center gap-1 hover:bg-blue-200 transition-colors">
                         <svg
                           className="w-2 h-2"
                           fill="none"
@@ -655,7 +630,7 @@ console.log('today',today);
                         </svg>
                         meet
                       </button>
-                      <button className="px-2 py-1 bg-purple-100 text-purple-600 rounded-lg rounded-tl-none text-xs font-medium flex items-center gap-1 hover:bg-purple-200 transition-colors">
+                      <button className="px-4 py-2 bg-white drop-shadow-2xl rounded-lg rounded-tl-none text-xs font-medium flex items-center gap-1 hover:bg-purple-200 transition-colors">
                         <svg
                           className="w-2 h-2"
                           fill="none"
@@ -671,7 +646,7 @@ console.log('today',today);
                         </svg>
                         Break
                       </button>
-                      <button className="px-2 py-1 bg-green-100 text-green-600 rounded-full text-xs font-medium flex items-center gap-1 hover:bg-green-200 transition-colors">
+                      <button className="px-4 py-2 bg-white drop-shadow-2xl rounded-full text-xs font-medium flex items-center gap-1 hover:bg-green-200 transition-colors">
                         <svg
                           className="w-2 h-2"
                           fill="none"
@@ -687,28 +662,35 @@ console.log('today',today);
                         </svg>
                         Focus
                       </button>
-                        <button
-                      onClick={() => setToggle(!toggle)}
-                         className="absolute right-1  px-4 py-2 bg-sky-100  rounded-md text-xs font-medium flex items-center gap-1 hover:bg-sky-200   transition-colors">{toggle?"Hide Events":"show Events"}</button>
+                      <button
+                        onClick={() => setToggle(!toggle)}
+                        className="absolute right-1  px-4 py-2 bg-white drop-shadow-2xl hover:cursor-pointer  transition-all duration-200 rounded-md text-xs font-medium flex items-center gap-1 hover:bg-sky-200"
+                      >
+                        {toggle ? "Hide Events" : "show Events"}
+                      </button>
                     </div>
                   </div>
 
                   {/* Right Column - Cards */}
                   {/* <div
                   > */}
-                    {/* Today Card */}{
-                      toggle && 
+                  {/* Today Card */}
+                  {toggle && (
                     <AnimatePresence>
                       {toggle && (
                         <motion.div
-                        className="w-60  absolute left-[100%] top-0 z-50 bg-white rounded-2xl shadow-lg border border-gray-200 p-4 ml-4 overflow-hidden"
+                          className="w-60  absolute left-[100%] top-0 z-50 bg-white rounded-2xl shadow-lg border border-gray-200 p-4 ml-4 overflow-hidden"
                           variants={containerVariants}
                           initial="hidden"
                           animate="visible"
                           exit="hidden"
                         >
                           {/* Today Card */}
-                          <motion.div style={{width: "100%"}} variants={cardVariants} exit="exit">
+                          <motion.div
+                            style={{ width: "100%" }}
+                            variants={cardVariants}
+                            exit="exit"
+                          >
                             <div
                               className={`mb-2 bg-white rounded-lg flex w-full flex-col items-start shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md ${
                                 activeCard === "today"
@@ -743,16 +725,26 @@ console.log('today',today);
                                 </div>
                               </div>
                               <div className="px-2 pb-2">
-                                {events.today.length === 0 ? (
+                              {todayEvents.length === 0 ? (
                                   <div className="py-1 text-center text-gray-500 text-xs bg-blue-50 rounded">
                                     No events scheduled
                                   </div>
                                 ) : (
                                   <div className="space-y-1">
-                                    {events.today.map((event, idx) => (
+                                    {todayEvents.map((event, idx) => (
                                       <div
                                         key={idx}
                                         className="flex items-center gap-1 p-1 bg-blue-50 rounded"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Find the full event in calendar data
+                                          const dateKey = `${new Date().getFullYear()}-${new Date().getMonth() + 1}-${new Date().getDate()}`;
+                                          const fullEvent = calendarData[dateKey]?.events.find(e => e.id === event.id)?.fullEvent;
+                                          if (fullEvent) {
+                                            dispatch(selectEvent(fullEvent));
+                                            dispatch(openEventModal());
+                                          }
+                                        }}
                                       >
                                         <div className="w-1 h-1 rounded-full bg-blue-500"></div>
                                         <span className="text-xs text-blue-800">
@@ -805,16 +797,28 @@ console.log('today',today);
                                 </div>
                               </div>
                               <div className="px-2 pb-2">
-                                {events.tomorrow.length === 0 ? (
+                              {tomorrowEvents.length === 0 ? (
                                   <div className="py-1 text-center text-gray-500 text-xs bg-purple-50 rounded">
                                     No events scheduled
                                   </div>
                                 ) : (
                                   <div className="space-y-1">
-                                    {events.tomorrow.map((event, idx) => (
+                                    {tomorrowEvents.map((event, idx) => (
                                       <div
                                         key={idx}
                                         className="flex items-center gap-1 p-1 bg-purple-50 rounded"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Find the full event in calendar data
+                                          const nextDay = new Date();
+                                          nextDay.setDate(new Date().getDate() + 1);
+                                          const dateKey = `${nextDay.getFullYear()}-${nextDay.getMonth() + 1}-${nextDay.getDate()}`;
+                                          const fullEvent = calendarData[dateKey]?.events.find(e => e.id === event.id)?.fullEvent;
+                                          if (fullEvent) {
+                                            dispatch(selectEvent(fullEvent));
+                                            dispatch(openEventModal());
+                                          }
+                                        }}
                                       >
                                         <div className="w-1 h-1 rounded-full bg-purple-500"></div>
                                         <span className="text-xs text-purple-800">
@@ -869,13 +873,14 @@ console.log('today',today);
                           </motion.div>
                         </motion.div>
                       )}
-                    </AnimatePresence>}
+                    </AnimatePresence>
+                  )}
                   {/* </div> */}
                 </div>
 
                 {/* Integrated UI from first file ends here */}
               </motion.div>
-            ) : viewMode==="calendar" ? (
+            ) : viewMode === "calendar" ? (
               <motion.div
                 key="calendar-view"
                 initial={{ opacity: 0, x: 20 }}
@@ -975,10 +980,26 @@ console.log('today',today);
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  {/* <motion.button
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium flex items-center gap-2"
+               <motion.button
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-medium flex items-center gap-2"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      // Create empty event and open modal
+                      const now = new Date(selectedDate);
+                      now.setHours(new Date().getHours(), new Date().getMinutes());
+                      const newEvent = {
+                        title: "",
+                        startDate: now,
+                        endDate: new Date(now.getTime() + 60 * 60 * 1000), // 1 hour later
+                        description: "",
+                        priority: "medium",
+                        eventType: "meeting",
+                        participants: []
+                      };
+                      dispatch(selectEvent(newEvent));
+                      dispatch(openEventModal());
+                    }}
                   >
                     <motion.span
                       whileHover={{ rotate: 90 }}
@@ -989,7 +1010,7 @@ console.log('today',today);
                       </svg>
                     </motion.span>
                     Add Event
-                  </motion.button> */}
+                  </motion.button>
                 </motion.div>
               </motion.div>
             ) : viewMode === "profile" ? (
@@ -998,31 +1019,31 @@ console.log('today',today);
                 initial={{ opacity: 0, y: 100 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 100 }}
-                transition={{ 
-                  type: "spring", 
+                transition={{
+                  type: "spring",
                   damping: 25,
-                  stiffness: 300
+                  stiffness: 300,
                 }}
                 className="relative h-full"
               >
                 <UserProfile onClose={handleCloseModalView} />
               </motion.div>
-            ) :(
+            ) : (
               <motion.div
                 key="subscription-view"
                 initial={{ opacity: 0, y: 100 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 100 }}
-                transition={{ 
-                  type: "spring", 
+                transition={{
+                  type: "spring",
                   damping: 25,
-                  stiffness: 300
+                  stiffness: 300,
                 }}
                 className="relative flex h-full "
               >
-                <SubscriptionPlans 
-                  subscription={subscription} 
-                  onClose={handleCloseModalView} 
+                <SubscriptionPlans
+                  subscription={subscription}
+                  onClose={handleCloseModalView}
                 />
               </motion.div>
             )}
@@ -1102,10 +1123,47 @@ console.log('today',today);
                       </p>
                     </motion.div>
                   ))}
+                  {/* Add event button for this date */}
+                  <motion.button
+                    className="w-full p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-center gap-2 text-blue-600 font-medium"
+                    whileHover={{ scale: 1.02, backgroundColor: "#dbeafe" }}
+                    onClick={() => {
+                      // Create empty event for the selected date
+                      const now = new Date(selectedDate);
+                      now.setHours(9, 0); // Default to 9:00 AM
+                      const newEvent = {
+                        title: "",
+                        startDate: now,
+                        endDate: new Date(now.getTime() + 60 * 60 * 1000), // 1 hour later
+                        description: "",
+                        priority: "medium",
+                        eventType: "meeting",
+                        participants: [],
+                      };
+                      dispatch(selectEvent(newEvent));
+                      dispatch(openEventModal());
+                    }}
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                    Add Event
+                  </motion.button>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
+          <EventEditorModal />
         </motion.div>
       </div>
 
@@ -1218,7 +1276,6 @@ console.log('today',today);
 
 const App=() => {
   const { isLoaded, isSignedIn,user } = useUser();
-  const isAuthOpen=selectAuthOpen
 
   if (!isLoaded) {
     return (
