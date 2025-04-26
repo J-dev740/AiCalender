@@ -35,7 +35,7 @@ import EventCards from "./components/EventsCard";
 const MainCalendar = () => {
   const { getToken } = useUser();
   const dispatch =useDispatch();
-  const {eventApi,aiApi,subscriptionApi}=useApiAuth(getToken);
+  const {aiApi,subscriptionApi}=useApiAuth(getToken);
   // State management
   const [viewMode, setViewMode] = useState("schedule"); // "schedule" or "calendar"
   // const [activeCard, setActiveCard] = useState(null);
@@ -80,12 +80,6 @@ const MainCalendar = () => {
     }
   }, [isSignedIn,user]);
 
-  // When selectedDate changes, update the calendar data if needed
-  // useEffect(() => {
-  //   if (isSignedIn && allEvents.length > 0) {
-  //     processEventsForCalendar(allEvents);
-  //   }
-  // }, [selectedDate.getMonth(), selectedDate.getFullYear()]);
 
     // Update selected day events when calendar data or selected date changes
     useEffect(() => {
@@ -99,36 +93,6 @@ const MainCalendar = () => {
       }
     }, [calendarData, selectedDate]);
    // Process events for calendar display
-   const processEventsForCalendar = (eventsData) => {
-    const calData = {};
-    
-    eventsData.forEach(event => {
-      const eventDate = new Date(event.startDate);
-      const year = eventDate.getFullYear();
-      const month = eventDate.getMonth() + 1; // Month is 0-indexed
-      const day = eventDate.getDate();
-      
-      const dateKey = `${year}-${month}-${day}`;
-      
-      if (!calData[dateKey]) {
-        calData[dateKey] = {
-          count: 0,
-          events: []
-        };
-      }
-      
-      calData[dateKey].count += 1;
-      calData[dateKey].events.push({
-        id: event._id || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        time: eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        title: event.title,
-        note: event.description || "No description provided",
-        organizer: event.organizer || "You"
-      });
-    });
-    
-    setCalendarData(calData);
-  };
 
   const handleChatSubmit = async (e) => {
     e.preventDefault();
@@ -191,14 +155,10 @@ const handleSlotSelect = async (slot) => {
   
   // Parse date and time information
   const [timeStr, dateStr] = slot.split(' on ');
-  console.log('tipmerstr\n',timeStr);
-  console.log('datestr',dateStr);
   const [startTimeStr, endTimeStr] = timeStr.split(' - ');
   console.log(startTimeStr,endTimeStr,dateStr);
   // Create date objects
   const [year,month,day] = dateStr.split('-').map(Number);
-  console.log('yakdjf',year,month,day);
-  console.log(month, day, year);
   const startDate = new Date(year, month - 1, day);
   const [startHour, startMinuteStr] = startTimeStr.split(':');
   let startHourNum = parseInt(startHour);
@@ -207,8 +167,6 @@ const handleSlotSelect = async (slot) => {
   if (!isPM && startHourNum === 12) startHourNum = 0;
   const startMinute = parseInt(startMinuteStr);
   startDate.setHours(startHourNum, startMinute);
-  console.log('startdate',startDate);
-  console.log('starMinute',startMinute);
   
   // Calculate end date based on duration or end time
   const endDate = new Date(startDate);
