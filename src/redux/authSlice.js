@@ -10,7 +10,6 @@ const authSlice=createSlice({
     },
     reducers:{
         openAuthModal: (state) => { 
-            console.log('statemachine',state);
             state.open = true;
          },
         closeAuthModal: state => { state.open = false },
