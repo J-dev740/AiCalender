@@ -203,6 +203,8 @@ const eventsSlice = createSlice({
           organizer: "You",
           fullEvent: action.payload
         });
+        state.selectedEvent = null;
+        state.isModalOpen = false;
       })
       .addCase(createEvent.rejected, (state, action) => {
         state.loading = false;
