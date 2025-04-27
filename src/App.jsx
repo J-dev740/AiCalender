@@ -1115,56 +1115,6 @@ const App=() => {
     <Router>
       <Routes>
         <Route 
-          path="/subscription/success" 
-          element={
-            <AuthWrapper>
-              <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-                <div className="bg-white p-8 rounded-lg shadow-md">
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-green-100 p-3 rounded-full">
-                      <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold text-center mb-2">Subscription Successful!</h2>
-                  <p className="text-gray-600 text-center mb-6">Your account has been upgraded successfully.</p>
-                  <div className="flex justify-center">
-                    <a href="/" className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium">
-                      Back to Calendar
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </AuthWrapper>
-          } 
-        />
-        <Route 
-          path="/subscription/cancel" 
-          element={
-            <AuthWrapper>
-              <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-                <div className="bg-white p-8 rounded-lg shadow-md">
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-red-100 p-3 rounded-full">
-                      <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold text-center mb-2">Subscription Cancelled</h2>
-                  <p className="text-gray-600 text-center mb-6">Your subscription was not completed.</p>
-                  <div className="flex justify-center">
-                    <a href="/" className="px-4 py-2 bg-blue-500 text-white rounded-lg font-medium">
-                      Back to Calendar
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </AuthWrapper>
-          } 
-        />
-        <Route 
           path="/" 
           element={
               <MainCalendar />
