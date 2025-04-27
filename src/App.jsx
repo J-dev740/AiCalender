@@ -17,6 +17,7 @@ import {  selectAuthOpen } from "./redux/authSlice";
 import {useApiAuth} from './services/api';
 
 // events related import 
+import useEventEmbeddings from "./hooks/useEventEmbeddings";
 import { 
   fetchEvents,
   createEvent,
@@ -30,6 +31,9 @@ import {
 } from './redux/eventSlice';
 import EventEditorModal from './components/EventEditorModal';
 import EventCards from "./components/EventsCard";
+import { useRagQuery } from './hooks/useRagQuery';
+import EventSearchResults from './components/EventSearchResults';
+import { selectSearchEvents, selectQueryType } from './redux/ragSlice';
 
 
 const MainCalendar = () => {
@@ -63,6 +67,14 @@ const MainCalendar = () => {
   // const allEvents = useSelector((state) => state.events.events);
   const calendarData = useSelector(selectCalendarData);
 
+  // Redux rag states
+    // Add these hooks
+    const { submitQuery, isProcessing: ragIsProcessing } = useRagQuery();
+    const searchEvents = useSelector(selectSearchEvents);
+    const queryType = useSelector(selectQueryType);
+      // Use the event embeddings hook
+    useEventEmbeddings();
+
   const getSubStatus= async ()=>{
     try {
       const response=await subscriptionApi.getStatus();
@@ -94,7 +106,7 @@ const MainCalendar = () => {
     }, [calendarData, selectedDate]);
    // Process events for calendar display
 
-  const handleChatSubmit = async (e) => {
+   const handleChatSubmit = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     
@@ -106,37 +118,36 @@ const MainCalendar = () => {
     setChatInput('');
 
     try {
-      // Process the scheduling request via the backend
-      const { data } = await aiApi.processSchedulingRequest(userInput);
+      // Use the submitQuery hook to process the user input
+      const result = await submitQuery(userInput);
       
-      if (data.success) {
-        // Format suggested times for display
-        const formattedSlots = data.suggestedSlots.map(slot => 
-          `${slot.startTime} - ${slot.endTime} on ${slot.date}`
-        );
-        
-        setSuggestedTimes(formattedSlots);
-        
-        // Show upgrade message for free tier
-        let message = `I can schedule "${data.eventDetails.title}" for you. Here are some suggested times:`;
-        if (!data.isPremium && subscription.status === 'free') {
-          message += ' Upgrade to premium for more time slot suggestions and advanced scheduling features.';
-        }
-        
+      if (result && result.success) {
+        // Add AI response to messages
         setMessages(prev => [...prev, { 
           type: 'ai', 
-          text: message
+          text: result.message
         }]);
         
-        // Store event details for creation
-        setCurrentEventData(data.eventDetails);
-        
-        // Open the suggestions modal
-        setIsModalOpen(true);
+        // Process different query types
+        if (result.type === 'EVENT_CREATION') {
+          // For event creation, handle suggested time slots
+          if (result.eventDetails && result.eventDetails.suggestedSlots) {
+            const formattedSlots = result.eventDetails.suggestedSlots.map(slot => 
+              `${slot.startTime} - ${slot.endTime} on ${slot.date}`
+            );
+            
+            setSuggestedTimes(formattedSlots);
+            setCurrentEventData(result.eventDetails);
+            setIsModalOpen(true);
+          }
+        } 
+        // Other query types (EVENT_RETRIEVAL, EVENT_UPDATE, EVENT_DELETION, OTHER)
+        // are handled by the Redux state & automatically displayed via the searchEvents selector
       } else {
+        // Handle error case
         setMessages(prev => [...prev, { 
           type: 'ai', 
-          text: data.message || "I couldn't understand your request. Could you provide more details?"
+          text: result?.message || "I couldn't process your request. Could you try again?"
         }]);
       }
     } catch (error) {
@@ -469,6 +480,14 @@ const handleChatInputChange = (event) => {
                               {message.text}
                             </p>
                           </div>
+                          {message.type === "ai" &&
+                            index === messages.length - 1 &&
+                            searchEvents &&
+                            searchEvents.length > 0 && (
+                              <div className="ml-2 mt-1">
+                                <EventSearchResults events={searchEvents} />
+                              </div>
+                            )}
                         </div>
                       ))}
                       {isProcessing && (
@@ -588,11 +607,8 @@ const handleChatInputChange = (event) => {
                     </div>
                   </div>
 
-                {/* Add the new EventCards component */}
-                <EventCards 
-                isVisible={toggle} 
-                calendarData={calendarData} 
-                />
+                  {/* Add the new EventCards component */}
+                  <EventCards isVisible={toggle} calendarData={calendarData} />
                 </div>
 
                 {/* Integrated UI from first file ends here */}
@@ -697,14 +713,17 @@ const handleChatInputChange = (event) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-               <motion.button
+                  <motion.button
                     className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-medium flex items-center gap-2"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       // Create empty event and open modal
                       const now = new Date(selectedDate);
-                      now.setHours(new Date().getHours(), new Date().getMinutes());
+                      now.setHours(
+                        new Date().getHours(),
+                        new Date().getMinutes()
+                      );
                       const newEvent = {
                         title: "",
                         startDate: now,
@@ -712,7 +731,7 @@ const handleChatInputChange = (event) => {
                         description: "",
                         priority: "medium",
                         eventType: "meeting",
-                        participants: []
+                        participants: [],
                       };
                       dispatch(selectEvent(newEvent));
                       dispatch(openEventModal());
@@ -722,8 +741,18 @@ const handleChatInputChange = (event) => {
                       whileHover={{ rotate: 90 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
                       </svg>
                     </motion.span>
                     Add Event
