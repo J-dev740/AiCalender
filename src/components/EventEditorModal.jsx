@@ -7,7 +7,8 @@ import {
   deleteEvent,
   selectSelectedEvent,
   selectIsEventModalOpen,
-  selectEventsLoading
+  selectEventsLoading,
+  createEvent
 } from '../redux/eventSlice';
 
 const EventEditorModal = () => {
@@ -83,10 +84,14 @@ const EventEditorModal = () => {
     };
     
     // Dispatch update event action
-    dispatch(updateEvent({ 
-      id: selectedEvent._id,
-      eventData 
-    }));
+    if(selectedEvent._id){
+      dispatch(updateEvent({ 
+        id: selectedEvent._id,
+        eventData 
+      }));
+    }else{
+      dispatch(createEvent(eventData));
+    }
   };
 
   // Handle delete event
@@ -353,7 +358,7 @@ const EventEditorModal = () => {
                     className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600"
                     disabled={isLoading}
                   >
-                    {isLoading ? 'Saving...' : 'Save Event'}
+                    {isLoading ? 'Saving...' :selectedEvent?._id? 'Update Event' : 'Create Event'}
                   </button>
                 </div>
               </div>
